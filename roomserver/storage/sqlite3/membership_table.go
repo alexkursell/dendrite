@@ -100,6 +100,10 @@ var selectKnownUsersSQL = "" +
 	"  SELECT DISTINCT room_nid FROM roomserver_membership WHERE target_nid=$1 AND membership_nid = " + fmt.Sprintf("%d", tables.MembershipStateJoin) +
 	") AND membership_nid = " + fmt.Sprintf("%d", tables.MembershipStateJoin) + " AND event_state_key LIKE $2 LIMIT $3"
 
+const selectPublicUsersSQL = "" +
+	"SELECT DISTINCT event_state_key FROM roomserver_membership WHERE room_nid IN ( SELECT DISTINCT published from roomserver_published )" +
+	"AND event_state_key LIKE $1 LIMIT $2"
+
 type membershipStatements struct {
 	db                                              *sql.DB
 	insertMembershipStmt                            *sql.Stmt
@@ -112,6 +116,7 @@ type membershipStatements struct {
 	selectRoomsWithMembershipStmt                   *sql.Stmt
 	updateMembershipStmt                            *sql.Stmt
 	selectKnownUsersStmt                            *sql.Stmt
+	selectPublicUsersStmt                           *sql.Stmt
 	updateMembershipForgetRoomStmt                  *sql.Stmt
 }
 
@@ -136,6 +141,7 @@ func prepareMembershipTable(db *sql.DB) (tables.Membership, error) {
 		{&s.updateMembershipStmt, updateMembershipSQL},
 		{&s.selectRoomsWithMembershipStmt, selectRoomsWithMembershipSQL},
 		{&s.selectKnownUsersStmt, selectKnownUsersSQL},
+		{&s.selectPublicUsersStmt, selectPublicUsersSQL},
 		{&s.updateMembershipForgetRoomStmt, updateMembershipForgetRoom},
 	}.Prepare(db)
 }
@@ -284,6 +290,23 @@ func (s *membershipStatements) SelectKnownUsers(ctx context.Context, userID type
 	}
 	result := []string{}
 	defer internal.CloseAndLogIfError(ctx, rows, "SelectKnownUsers: rows.close() failed")
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		result = append(result, userID)
+	}
+	return result, rows.Err()
+}
+
+func (s *membershipStatements) SelectPublicUsers(ctx context.Context, searchString string, limit int) ([]string, error) {
+	rows, err := s.selectPublicUsersStmt.QueryContext(ctx, fmt.Sprintf("%%%s%%", searchString), limit)
+	if err != nil {
+		return nil, err
+	}
+	result := []string{}
+	defer internal.CloseAndLogIfError(ctx, rows, "SelectPublicUsers: rows.close() failed")
 	for rows.Next() {
 		var userID string
 		if err := rows.Scan(&userID); err != nil {

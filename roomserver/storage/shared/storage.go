@@ -1068,6 +1068,10 @@ func (d *Database) GetKnownUsers(ctx context.Context, userID, searchString strin
 	return d.MembershipTable.SelectKnownUsers(ctx, stateKeyNID, searchString, limit)
 }
 
+func (d *Database) GetPublicUsers(ctx context.Context, searchString string, limit int) ([]string, error) {
+	return d.MembershipTable.SelectPublicUsers(ctx, searchString, limit)
+}
+
 // GetKnownRooms returns a list of all rooms we know about.
 func (d *Database) GetKnownRooms(ctx context.Context) ([]string, error) {
 	return d.RoomsTable.SelectRoomIDs(ctx)
